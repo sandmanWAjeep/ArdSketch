@@ -54,29 +54,30 @@ bool fileHasBeenSelected = false;
 String inString = "";    // string to hold input
 float arcVoltSetPoint = 2.5;
 int raw = 0;
-int joyStickPin = A14;
+//int joyStickPin = A14;               // Used in joggingControl()
 int Vref = 5;
 float Vout = 0;
 float R1 = 10000;
 float joyStickOhmValue = 0;
 float buffer = 0;
 
-#define toolHighPin    25   // from laser
-#define toolLowPin     27   // from laser
-#define Spindle_EnablePin  23   // from GRBL controller
-#define carriageServoPin       45
-#define modeSwitchPin  29
-#define penServoPin    44
-#define upButtonPin    31
-#define downButtonPin  35
-#define plasmaVoltPin  A15
-#define SD_CS_PIN SS
-//#define joyStickPin = A14
-#define penDownPos    180
-#define penUpPos    20
-#define lowerToolVal   75
-#define stayStillVal   90
-#define raiseToolVal   105
+#define toolHighPin			25   // from laser
+#define toolLowPin			27   // from laser
+#define Spindle_EnablePin	23   // from GRBL controller
+#define carriageServoPin	45
+#define modeSwitchPin		29
+#define penServoPin			44
+#define upButtonPin			31
+#define downButtonPin		35
+#define plasmaVoltPin		A15
+#define SD_CS_PIN			SS
+#define joyStickPin			A14
+#define penDownPos			180
+#define penUpPos			20
+#define lowerToolVal		75
+#define stayStillVal		90
+#define raiseToolVal		105
+// define colors
 #define BLACK   0x0000
 #define BLUE    0x001F
 #define RED     0xF800
@@ -107,6 +108,7 @@ void setup() {
 	while (!Serial) {}
 
 	//print list of files stored on SD card
+	setupScreen();
 	checkSD();
 	root = SD.open("/");
 	drawScreen();	
@@ -171,6 +173,9 @@ void checkSD() {
 
 	while (!SD.begin(53)) {
 		Serial.println("Please insert SD card...\n");
+		tft.setCursor(10, 50);
+		tft.setTextSize(3);
+		tft.println("Please insert SD card...\n");
 		delay(1000);
 	}
 
@@ -311,9 +316,15 @@ void sendGcode() {
 			line = readLine(myFile);  //read line in gcode file 
 			Serial.print(line);   //send to serial monitor
 			Serial1.print(line);    //send to grbl
-			Serial.print(getSerial(1)); //print grbl return on serial
+			String fromGRBL = getSerial(1);
+			Serial.print(fromGRBL); //print grbl return on serial
 			updateTHC();
 			checkButtons();
+			if (fromGRBL = ("error")) {
+				tft.setCursor(10, 20);
+				tft.setTextSize(4);
+				tft.print("Grbl replied with ERROR");
+			}
 		}
 	}
 	else
@@ -382,7 +393,7 @@ void updateTouchscreen() {
 		}
 	}
 }
-void drawScreen() {
+void setupScreen() {
 	tft.reset();
 	uint16_t ID = tft.readID();
 	tft.begin(ID);
@@ -391,7 +402,10 @@ void drawScreen() {
 	//print welcome message
 	tft.setCursor(10, 20);
 	tft.setTextSize(3);
-	tft.println("Sanders' CNC Gantry");	
+	tft.println("Sanders' CNC Gantry");
+}
+void drawScreen() {
+	
 	tft.fillRect(380, 10, 100, 200, WHITE);   //   (x, y, width, height) xy is upper left corner of rectangle
 	tft.fillRect(390, 90, 80, 40, GREEN);    // block for current arc voltage
 	tft.fillRect(390, 160, 80, 40, GREEN);    // block for arc voltage setpoint	
