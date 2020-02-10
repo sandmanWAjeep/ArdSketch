@@ -53,6 +53,13 @@ int fileSelected = 10;
 bool fileHasBeenSelected = false;
 String inString = "";    // string to hold input
 float arcVoltSetPoint = 2.5;
+int raw = 0;
+int joyStickPin = A14;
+int Vref = 5;
+float Vout = 0;
+float R1 = 10000;
+float joyStickOhmValue = 0;
+float buffer = 0;
 
 #define toolHighPin    25   // from laser
 #define toolLowPin     27   // from laser
@@ -64,6 +71,7 @@ float arcVoltSetPoint = 2.5;
 #define downButtonPin  35
 #define plasmaVoltPin  A15
 #define SD_CS_PIN SS
+//#define joyStickPin = A14
 #define penDownPos    180
 #define penUpPos    20
 #define lowerToolVal   75
@@ -114,11 +122,14 @@ void loop() {
 
 		updateTouchscreen();
 
+		joggingControl();
+
 		if (fileHasBeenSelected) {
 			sendGcode();
 		}
 		getInputs();
 		updateTHC();
+		checkButtons();
 
 		/*while (!digitalRead(toolHighPin)) {  //start pen plotter control loop
 
@@ -350,10 +361,10 @@ bool Touch_getXY(void) {
 	if (pressed) {
 		pixel_x = map(p.y, TS_LEFT, TS_RT, 0, 480); //.kbv makes sense to me
 		pixel_y = map(p.x, TS_TOP, TS_BOT, 0, 320);
-		Serial.print("pixel_x = ");
-		Serial.println(pixel_x);
-		Serial.print("pixel_y = ");
-		Serial.println(pixel_y);
+		//Serial.print("pixel_x = ");
+		//Serial.println(pixel_x);
+		//Serial.print("pixel_y = ");
+		//Serial.println(pixel_y);
 	}
 	return pressed;
 }
@@ -456,9 +467,9 @@ void drawButtons() {
 	Serial.println("drawing fixed buttons");
 	delay(1000);
 	//btn num                   xPos, yPos, W, H,  border, color,   text,  label,textsize
-	buttons[19].initButton(&tft, 430, 270, 80, 80, YELLOW, MAGENTA, BLACK, "HOLD", 2);
+	buttons[19].initButton(&tft, 430, 270, 80, 80, YELLOW, MAGENTA, BLACK, "FEED +", 2);
 	buttons[19].drawButton();
-	buttons[18].initButton(&tft, 340, 270, 80, 80, YELLOW, MAGENTA, BLACK, "RES", 2);
+	buttons[18].initButton(&tft, 340, 270, 80, 80, YELLOW, MAGENTA, BLACK, "FEED -", 2);
 	buttons[18].drawButton();
 	buttons[17].initButton(&tft, 250, 270, 80, 80, YELLOW, MAGENTA, BLACK, "TORCH", 2);
 	buttons[17].drawButton();
@@ -485,3 +496,74 @@ void checkButtons() {
 		delay(1000);
 	}
 }
+void joggingControl() {
+	String jogLeft = "$J = G91 G21 X-10 F2000";
+	String jogRight = "$J = G91 G21 X10 F2000";
+	String jogUp = "$J = G91 G21 Y10 F2000"; 
+	String jogDown = "$J = G91 G21 Y-10 F2000";
+	String jogCancel = "$0x85";
+	float upVoltage = 2;
+	float downVoltage = 5;
+	float leftVoltage = 1.8;
+	float rightVoltage = 3;
+	float centerVoltage = 1;
+	float tolerance = 0.2;
+	
+		raw = analogRead(joyStickPin);
+		if (raw)
+		{
+			buffer = raw * Vref;
+			Vout = (buffer) / 1024.0;
+			buffer = (Vref / Vout) - 1;
+			joyStickOhmValue = R1 * buffer;
+
+			if ((upVoltage - tolerance) <= Vout && Vout <= (upVoltage + tolerance)) {
+				Serial1.print("\r\n\r\n");      //Wake up grbl
+				delay(2);
+				emptySerialBuf(1);
+				Serial.println("Jogging up");
+				Serial1.print(jogUp);		
+				Serial.println(getSerial(1));
+			}
+			if ((downVoltage - tolerance) <= Vout && Vout <= (downVoltage + tolerance)) {
+				Serial1.print("\r\n\r\n");      //Wake up grbl
+				delay(2);
+				emptySerialBuf(1);
+				Serial.println(jogDown);
+				Serial1.print("$J = G91 Y-10 F200");
+				Serial.println(getSerial(1));
+			}
+			if ((leftVoltage - tolerance) <= Vout && Vout <= (leftVoltage + tolerance)) {
+				Serial1.print("\r\n\r\n");      //Wake up grbl
+				delay(2);
+				emptySerialBuf(1);
+				Serial.println("Jogging Left");
+				Serial1.print(jogLeft);    //send to grbl
+				Serial.print(getSerial(1)); //print grbl return on serial
+				
+
+			}
+			if ((rightVoltage - tolerance) <= Vout && Vout <= (rightVoltage + tolerance)) {
+				Serial1.print("\r\n\r\n");      //Wake up grbl
+				delay(2);
+				emptySerialBuf(1);
+				Serial.println("Jogging Right");
+				Serial1.print(jogRight);    //send to grbl
+				Serial.print(getSerial(1)); //print grbl return on serial
+				
+
+			}
+			if ((centerVoltage - tolerance) <= Vout && Vout <= (centerVoltage + tolerance)) {
+				Serial1.print("\r\n\r\n");      //Wake up grbl
+				delay(2);
+				emptySerialBuf(1);
+				Serial.println("Center Button Pressed");        //jog cancel 0x85
+				Serial1.print(jogCancel);
+				Serial.println(getSerial(1));
+
+			}
+			//waitSerial(1);
+			delay(500);
+			
+		}
+	}
